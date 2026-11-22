@@ -40,10 +40,6 @@ function tone(freq, startAt, duration, type, volume) {
   osc.stop(ac.currentTime + startAt + duration + 0.05);
 }
 
-export function playDrawSound() {
-  tone(520, 0, 0.08, 'sine', 0.08);
-}
-
 export function playCardSound(element) {
   const base = ELEMENT_FREQ[element] ?? 262;
   tone(base, 0, 0.12, 'triangle', 0.14);
