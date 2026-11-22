@@ -10,11 +10,6 @@ export const ELEMENTS = {
   gale: { name: 'Gale', color: '#46a758', dark: '#1f5c2e', light: '#d8f5dd', glyph: 'wind' },
 };
 
-export const ELEMENT_ORDER = ['flame', 'tide', 'stone', 'gale'];
-
-// One card type per job: strike hurts, guard blocks, heal restores.
-// "Surge" is not a card: it is the combo rule (see rules.js in main.js) —
-// play a second card of the same element in one turn and its effect doubles.
 export const CARD_TYPES = {
   strike: { label: 'Strike', verb: 'hits' },
   guard: { label: 'Guard', verb: 'wards' },
@@ -22,11 +17,13 @@ export const CARD_TYPES = {
 };
 
 // Element flavour, kept small so the table stays readable:
-// Flame strikes hit +1, Tide heals +1, Stone guards +1, Gale cards cost 1 less.
+// Flame strikes hit +1, Tide heals +1, Stone guards +2, Gale cards cost 1
+// less Ember but hit 1 weaker (cheap, not free). Backdraft, in the
+// blueprint below, strikes +2 against a Gale card the foe just played.
 export function elementBonus(element, type) {
   if (element === 'flame' && type === 'strike') return 1;
   if (element === 'tide' && type === 'heal') return 1;
-  if (element === 'stone' && type === 'guard') return 1;
+  if (element === 'stone' && type === 'guard') return 2;
   return 0;
 }
 
@@ -35,14 +32,24 @@ export function effectiveCost(card) {
   return card.cost;
 }
 
-export function effectivePower(card) {
-  return card.power + elementBonus(card.element, card.type);
+// A card that answers the foe's element: Backdraft burns hotter (+2) when
+// the foe's most recently played card was Gale. foeLastElement is that
+// element, or undefined when the foe has played nothing yet.
+export function counterBonus(card, foeLastElement) {
+  if (card.bonusVs && foeLastElement === card.bonusVs.element) return card.bonusVs.power;
+  return 0;
+}
+
+export function effectivePower(card, foeLastElement) {
+  let power = card.power + elementBonus(card.element, card.type);
+  if (card.element === 'gale') power -= 1; // Gale is cheap, so it hits weaker
+  return power + counterBonus(card, foeLastElement);
 }
 
 let nextCardId = 1;
 
-export function makeCard(element, type, name, cost, power, text) {
-  return {
+export function makeCard(element, type, name, cost, power, text, bonusVs) {
+  const card = {
     id: nextCardId++,
     element,
     type,
@@ -51,6 +58,8 @@ export function makeCard(element, type, name, cost, power, text) {
     power,
     text,
   };
+  if (bonusVs) card.bonusVs = bonusVs;
+  return card;
 }
 
 // The 30-card deck every duelist shuffles: 6 cards per element plus a heavy
@@ -58,7 +67,7 @@ export function makeCard(element, type, name, cost, power, text) {
 const DECK_BLUEPRINT = [
   // element, type, name, cost, power, flavour text
   ['flame', 'strike', 'Ember Lash', 2, 3, 'A whip of live coal.'],
-  ['flame', 'strike', 'Ember Lash', 2, 3, 'A whip of live coal.'],
+  ['flame', 'strike', 'Backdraft', 2, 3, 'Burns hotter against Gale.', { element: 'gale', power: 2 }],
   ['flame', 'strike', 'Cinder Fang', 3, 5, 'Bites through armour.'],
   ['flame', 'guard', 'Flame Ward', 2, 5, 'A wall of held fire.'],
   ['flame', 'heal', 'Ember Mend', 2, 4, 'Warmth knits the wound.'],
@@ -90,9 +99,11 @@ const DECK_BLUEPRINT = [
 ];
 
 export function buildDeck() {
-  nextCardId = 1;
-  return DECK_BLUEPRINT.map(([element, type, name, cost, power, text]) =>
-    makeCard(element, type, name, cost, power, text),
+  // Note: nextCardId is NOT reset here. buildDeck runs once per side, so a
+  // reset would hand both hands the same ids 1..30; ids must stay unique
+  // across the whole duel (the AI looks cards up by id).
+  return DECK_BLUEPRINT.map(([element, type, name, cost, power, text, bonusVs]) =>
+    makeCard(element, type, name, cost, power, text, bonusVs),
   );
 }
 
