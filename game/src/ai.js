@@ -6,9 +6,11 @@
 import { effectiveCost, effectivePower } from './deck.js';
 
 // Score one card for Cinder in her current position. Higher is better.
-function scoreCard(card, self, foe) {
+// foeLastElement is the element of the foe's most recently played card:
+// a card that answers it (Backdraft vs Gale) is worth more.
+function scoreCard(card, self, foe, foeLastElement) {
   const cost = effectiveCost(card);
-  const power = effectivePower(card);
+  const power = effectivePower(card, foeLastElement);
   let score = 0;
 
   if (card.type === 'strike') {
@@ -45,6 +47,11 @@ export function chooseAiPlays(state) {
   let ember = self.ember;
   const playedElements = [];
   const hand = self.hand.slice();
+  // The foe's most recent card: a reactive card (Backdraft) answers it.
+  let foeLastElement;
+  for (let i = state.lastPlayed.length - 1; i >= 0; i--) {
+    if (state.lastPlayed[i].by === 'player') { foeLastElement = state.lastPlayed[i].card.element; break; }
+  }
 
   for (let step = 0; step < 3; step++) {
     let best = null;
@@ -53,10 +60,10 @@ export function chooseAiPlays(state) {
       if (plays.includes(card.id)) continue;
       const cost = effectiveCost(card);
       if (cost > ember) continue;
-      let score = scoreCard(card, self, foe);
-      // Surge hunger: a second card of an element already played this turn
-      // doubles, so it is worth reaching for.
-      if (playedElements.includes(card.element)) score += 14;
+      let score = scoreCard(card, self, foe, foeLastElement);
+      // Surge hunger: only the SECOND card of an element doubles, so the
+      // bonus applies when exactly one card of it was played already.
+      if (playedElements.filter((e) => e === card.element).length === 1) score += 14;
       // Opening a Surge chain with a cheap card is good setup.
       if (playedElements.length === 0 && cost <= 2) score += 2;
       if (score > bestScore) {
@@ -70,14 +77,14 @@ export function chooseAiPlays(state) {
     playedElements.push(best.element);
     // Pretend the card resolved, so the next pick sees the new position.
     if (best.type === 'strike') {
-      const dmg = effectivePower(best) * (playedElements.filter((e) => e === best.element).length > 1 ? 2 : 1);
+      const dmg = effectivePower(best, foeLastElement) * (playedElements.filter((e) => e === best.element).length === 2 ? 2 : 1);
       const absorbed = Math.min(foe.block, dmg);
       foe.block -= absorbed;
       foe.life = Math.max(0, foe.life - (dmg - absorbed));
     } else if (best.type === 'guard') {
-      self.block += effectivePower(best);
+      self.block += effectivePower(best, foeLastElement);
     } else if (best.type === 'heal') {
-      self.life = Math.min(20, self.life + effectivePower(best));
+      self.life = Math.min(20, self.life + effectivePower(best, foeLastElement));
     }
   }
   return plays;
@@ -85,14 +92,14 @@ export function chooseAiPlays(state) {
 
 // The same scoring, exposed for the in-page autoplay that plays the human
 // side during headless playtests. It picks the single best affordable card.
-export function chooseBestCard(hand, ember, self, foe, playedElements) {
+export function chooseBestCard(hand, ember, self, foe, playedElements, foeLastElement) {
   let best = null;
   let bestScore = -Infinity;
   for (const card of hand) {
     const cost = effectiveCost(card);
     if (cost > ember) continue;
-    let score = scoreCard(card, self, foe);
-    if (playedElements.includes(card.element)) score += 14;
+    let score = scoreCard(card, self, foe, foeLastElement);
+    if (playedElements.filter((e) => e === card.element).length === 1) score += 14;
     if (score > bestScore) {
       bestScore = score;
       best = card;
