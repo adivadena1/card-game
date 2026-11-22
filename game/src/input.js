@@ -1,7 +1,8 @@
 // Ember Duel — input.js
 // Mouse and keyboard for the table. Click a card (or press 1–7) to play it,
-// arrow keys move the selection, Enter/Space ends the turn, R restarts from
-// an end screen. All handlers funnel into the callbacks main.js provides.
+// arrow keys move the selection, Enter plays the selected card, Space ends
+// the turn, R restarts from an end screen. All handlers funnel into the
+// callbacks main.js provides.
 
 export function bindInput(callbacks) {
   const hand = document.getElementById('player-hand');
@@ -49,10 +50,14 @@ export function bindInput(callbacks) {
       const endVisible = !document.getElementById('end-screen').classList.contains('hidden');
       if (titleVisible) callbacks.onStartGame();
       else if (endVisible) callbacks.onRestart();
-      else if (callbacks.onPlaySelected()) {
-        // A selected card was played; nothing else to do.
-      } else {
+      else if (key === ' ') {
+        // Space always ends the turn: the explicit way to pass.
         callbacks.onEndTurn();
+      } else {
+        // Enter plays the selected card. It ends the turn only when there
+        // is no card to play at all (empty hand): pressing Enter on a card
+        // the player cannot afford must never cost a whole turn.
+        if (callbacks.onPlaySelected() === 'none') callbacks.onEndTurn();
       }
       event.preventDefault();
     } else if (key === 'r' || key === 'R') {
