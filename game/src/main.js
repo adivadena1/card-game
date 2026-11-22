@@ -3,9 +3,9 @@
 // win and loss, and the AI's turn. Rendering, input, sound and the AI's
 // choices live in their own files; this one only runs the game.
 
-import { buildDeck, drawFrom, effectiveCost, effectivePower, makeRng, shuffle, ELEMENTS } from './deck.js';
+import { buildDeck, drawFrom, effectiveCost, effectivePower, counterBonus, makeRng, shuffle, ELEMENTS } from './deck.js';
 import { chooseAiPlays, chooseBestCard } from './ai.js';
-import { renderAll, addLogLine, clearLog, floatText, showBanner, showTitleScreen, hideTitleScreen, showEndScreen } from './render.js';
+import { renderAll, addLogLine, clearLog, floatText, showBanner, hideTitleScreen, showEndScreen } from './render.js';
 import { bindInput } from './input.js';
 import * as audio from './audio.js';
 import { setupShotOrTest } from './shots.js';
@@ -53,13 +53,32 @@ function sideName(who) {
   return who === 'player' ? 'You' : 'Cinder';
 }
 
+function possessiveName(who) {
+  return who === 'player' ? 'Your' : "Cinder's";
+}
+
 function playVerb(who) {
   return who === 'player' ? 'play' : 'plays';
 }
 
+// Element of the most recent card `who`'s foe played, or undefined when the
+// foe has played nothing yet. Used by cards that answer the foe's element.
+function foeLastElement(who) {
+  const foe = who === 'player' ? 'ai' : 'player';
+  for (let i = state.lastPlayed.length - 1; i >= 0; i--) {
+    if (state.lastPlayed[i].by === foe) return state.lastPlayed[i].card.element;
+  }
+  return undefined;
+}
+
 function drawCard(who) {
   const side = state[who];
-  if (side.hand.length >= MAX_HAND) return null;
+  if (side.hand.length >= MAX_HAND) {
+    // The card is not lost (drawFrom is never called), but the player
+    // deserves to know the draw went nowhere.
+    if (who === 'player') addLogLine('Your hand is full — the drawn card stays in the deck.', 'warn');
+    return null;
+  }
   const card = drawFrom(side.deck, side.discard, state.rng);
   if (card) side.hand.push(card);
   return card;
@@ -95,68 +114,91 @@ function dealDamage(target, amount, attacker) {
   side.block -= absorbed;
   const toLife = amount - absorbed;
   side.life = Math.max(0, side.life - toLife);
-  if (toLife > 0) floatText(target, -toLife, 'damage');
-  if (absorbed > 0) addLogLine(`${sideName(target)}'s block absorbs ${absorbed}.`, 'info');
+  // No floatText here: playCard shows the number after renderAll, because
+  // renderSide rebuilds the life area and would discard a float made now.
+  if (absorbed > 0) addLogLine(`${possessiveName(target)} block absorbs ${absorbed}.`, 'info');
   if (attacker === 'player') state.stats.damageDealt += toLife;
   return toLife;
 }
 
-// Play the card at handIndex for `who`. Returns true when a card was played.
+// Play the card at handIndex for `who`.
+// Returns 'played' when the card resolved, 'unaffordable' when the side
+// cannot pay for it, and 'none' when nothing could be played at all.
+// Callers must tell those apart: 'unaffordable' is not a reason to end the
+// turn, only 'none' is.
 export function playCard(who, handIndex) {
-  if (state.phase === 'over') return false;
-  if (who === 'player' && state.phase !== 'playing') return false;
+  if (state.phase === 'over') return 'none';
+  if (who === 'player' && state.phase !== 'playing') return 'none';
   const side = state[who];
   const card = side.hand[handIndex];
-  if (!card) return false;
+  if (!card) return 'none';
   const cost = effectiveCost(card);
   if (cost > side.ember) {
     if (who === 'player') addLogLine(`Not enough ember for ${card.name} (${cost} needed).`, 'warn');
-    return false;
+    return 'unaffordable';
   }
 
   side.hand.splice(handIndex, 1);
   side.ember -= cost;
-  const surge = state.playedElements.includes(card.element);
+  // Surge doubles only the SECOND card of an element in one turn: exactly
+  // one card of this element was played before it. A third one plays flat.
+  const surge = state.playedElements.filter((e) => e === card.element).length === 1;
   state.playedElements.push(card.element);
-  const power = effectivePower(card) * (surge ? 2 : 1);
+  // A card that answers the foe's element (Backdraft vs Gale) hits harder
+  // when the foe's most recent card was of that element.
+  const foeElement = foeLastElement(who);
+  const counter = counterBonus(card, foeElement);
+  const power = effectivePower(card, foeElement) * (surge ? 2 : 1);
 
   if (who === 'player') {
     state.stats.cardsPlayed += 1;
     if (surge) state.stats.surges += 1;
   }
   state.lastPlayed.push({ card, by: who, surge, power });
+  // Bounded: the played zone shows the last 4, and the counter lookup only
+  // ever needs the foe's most recent card (at most 7 plays back).
+  if (state.lastPlayed.length > 8) state.lastPlayed.shift();
   side.discard.push(card);
 
   const foe = who === 'player' ? 'ai' : 'player';
   const elementName = ELEMENTS[card.element].name;
+  // Floating numbers are collected here and shown after renderAll below:
+  // renderSide rebuilds the life area, which would discard a float made
+  // before it, so no number ever reached the screen.
+  const floats = [];
   if (surge) {
     audio.playSurgeSound();
     showBanner('SURGE!', `${elementName} ×2 — ${card.name} hits twice as hard`);
-    addLogLine(`SURGE! ${sideName(who)} chains ${elementName} — ${card.name} doubles to ${power}.`, 'surge');
+    addLogLine(`SURGE! ${card.name} doubles to ${power}.`, 'surge');
+  }
+  if (counter > 0) {
+    addLogLine(`${card.name} answers ${ELEMENTS[foeElement].name} — +${counter} power.`, 'surge');
   }
 
   if (card.type === 'strike') {
     audio.playCardSound(card.element);
     audio.playHitSound(power >= 8);
     const dealt = dealDamage(foe, power, who);
+    if (dealt > 0) floats.push([foe, -dealt, 'damage']);
     addLogLine(`${sideName(who)} ${playVerb(who)} ${card.name} (${elementName}) — ${dealt} damage to ${sideName(foe)}.`, 'strike');
   } else if (card.type === 'guard') {
     audio.playGuardSound();
     side.block += power;
-    floatText(who, power, 'block');
+    floats.push([who, power, 'block']);
     addLogLine(`${sideName(who)} ${playVerb(who)} ${card.name} (${elementName}) — gains ${power} block.`, 'guard');
   } else {
     audio.playHealSound();
     const healed = Math.min(power, MAX_LIFE - side.life);
     side.life = Math.min(MAX_LIFE, side.life + power);
-    if (healed > 0) floatText(who, healed, 'heal');
+    if (healed > 0) floats.push([who, healed, 'heal']);
     addLogLine(`${sideName(who)} ${playVerb(who)} ${card.name} (${elementName}) — restores ${healed} life.`, 'heal');
   }
 
   if (who === 'player') state.selectedIndex = Math.min(state.selectedIndex, side.hand.length - 1);
   renderAll(state);
   checkEnd();
-  return true;
+  for (const [target, amount, kind] of floats) floatText(target, amount, kind);
+  return 'played';
 }
 
 function checkEnd() {
@@ -216,10 +258,10 @@ function runAiTurn() {
 export function autoplayStep() {
   if (state.phase !== 'playing') return false;
   const played = state.playedElements.slice();
-  const card = chooseBestCard(state.player.hand, state.player.ember, state.player, state.ai, played);
+  const card = chooseBestCard(state.player.hand, state.player.ember, state.player, state.ai, played, foeLastElement('player'));
   if (!card) return false;
   const index = state.player.hand.findIndex((c) => c.id === card.id);
-  return playCard('player', index);
+  return playCard('player', index) === 'played';
 }
 
 export function autoplayTurn() {
@@ -309,15 +351,6 @@ function boot() {
     startGame,
     getState,
   });
-
-  // Test hooks for the headless playtest driver.
-  window.__ember = {
-    getState,
-    playCard,
-    endPlayerTurn,
-    autoplayTurn,
-    newDuel,
-  };
 }
 
 document.addEventListener('DOMContentLoaded', boot);
