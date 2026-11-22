@@ -52,7 +52,7 @@
     <div class="ember-slot"></div>
     <div id="player-count" class="hand-count"></div>
     <div id="controls">
-      <button id="end-turn-btn" type="button">End Turn ⏎</button>
+      <button id="end-turn-btn" type="button">End Turn</button>
     </div>
   </section>
 </div>
@@ -67,8 +67,8 @@
       <b>Goal:</b> reduce Cinder’s Life from 20 to 0 before she does the same to you.<br>
       <b>Ember</b> is your mana: it grows by 1 every turn (up to 10) and pays for cards.<br>
       <b>Surge:</b> play two cards of the same element in one turn — the second hits twice as hard.<br>
-      <b>Flame</b> strikes +1 · <b>Tide</b> heals +1 · <b>Stone</b> guards +1 · <b>Gale</b> costs 1 less.<br>
-      Click a card or press <b>1–7</b> to play it, <b>Enter</b> to end your turn.
+      <b>Flame</b> strikes +1 · <b>Tide</b> heals +1 · <b>Stone</b> guards +2 · <b>Gale</b> costs 1 less, hits 1 weaker. <b>Backdraft</b>: +2 vs a Gale card Cinder just played.<br>
+      Click a card or press <b>1–7</b> to play it, <b>Enter</b> plays the selected card, <b>Space</b> ends your turn.
     </div>
     <button class="big-btn" id="play-btn" type="button">▶ &nbsp;Play</button>
     <p class="hint">30 original cards · 4 elements · one readable rival: Cinder goes for the kill when she can see it, and turtles when she is hurt.</p>
@@ -93,10 +93,10 @@
       <li>On your turn, play any cards you can afford, then press <b>End Turn</b>. You draw 1 card each turn (hand limit 7).</li>
       <li><b>Strike</b> deals damage · <b>Guard</b> gives block that absorbs damage until your next turn · <b>Heal</b> restores Life.</li>
       <li><b>Surge:</b> the second card of the same element you play in one turn has its effect doubled. Chain cheap cards to set it up.</li>
-      <li>Element flavour: <b>Flame</b> strikes +1 damage, <b>Tide</b> heals +1, <b>Stone</b> guards +1 block, <b>Gale</b> cards cost 1 less Ember.</li>
+      <li>Element flavour: <b>Flame</b> strikes +1 damage, <b>Tide</b> heals +1, <b>Stone</b> guards +2 block, <b>Gale</b> cards cost 1 less Ember but hit 1 weaker. <b>Backdraft</b> strikes +2 damage against a Gale card Cinder just played.</li>
       <li><b>Cinder</b> is readable: she takes the kill when she sees it, guards and heals when hurt, and loves a Surge as much as you do.</li>
       <li>Win by bringing Cinder’s Life to 0. If your deck runs out it is reshuffled from your discards.</li>
-      <li>Mouse: click a card to play it. Keyboard: <b>1–7</b> play a card, <b>← →</b> select, <b>Enter</b> play selected / end turn, <b>R</b> play again.</li>
+      <li>Mouse: click a card to play it. Keyboard: <b>1–7</b> play a card, <b>← →</b> select, <b>Enter</b> plays the selected card, <b>Space</b> ends your turn, <b>R</b> play again.</li>
     </ul>
     <div style="text-align:center">
       <button class="big-btn" id="rules-close-btn" type="button" style="font-size:17px;padding:10px 30px">Got it</button>
