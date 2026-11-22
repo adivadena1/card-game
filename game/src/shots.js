@@ -47,31 +47,34 @@ function rigForLoss(api) {
 
 // Play the table shot for real: two player cards (a same-element pair, so a
 // Surge fires) and one AI card, using the game's own playCard path.
+// Ember starts at 6 of 6 in turn 6, and the two cards are cheap enough to
+// leave at least 2 ember: a cover shot at 0 ember would grey out the whole
+// hand with the .unaffordable filter, hiding every suit colour.
 function playTableScript(api) {
   const state = api.getState();
-  state.turn = 4;
+  state.turn = 6;
   state.player.life = 16;
   state.player.block = 3;
   state.ai.life = 18;
   state.ai.block = 4;
-  state.player.ember = 4;
-  state.player.emberMax = 4;
-  state.ai.ember = 4;
-  state.ai.emberMax = 4;
+  state.player.ember = 6;
+  state.player.emberMax = 6;
+  state.ai.ember = 6;
+  state.ai.emberMax = 6;
 
   const hand = state.player.hand;
-  const first = hand.findIndex((c) => effectiveCost(c) <= 4);
+  const first = hand.findIndex((c) => effectiveCost(c) <= 2);
   if (first < 0) return;
   const firstCard = hand[first];
   api.playCard('player', first);
   const second = state.player.hand.findIndex(
-    (c) => c.element === firstCard.element && effectiveCost(c) <= state.player.ember,
+    (c) => c.element === firstCard.element && effectiveCost(c) <= state.player.ember - 2,
   );
   if (second >= 0) api.playCard('player', second);
   // Cinder answers with one strike of her own.
   const aiStrike = state.ai.hand.findIndex((c) => c.type === 'strike' && effectiveCost(c) <= 4);
   if (aiStrike >= 0) api.playCard('ai', aiStrike);
-  addLogLine('Turn 4 — the table is warm and both duelists are hurt.', 'info');
+  addLogLine('Turn 6 — the table is warm.', 'info');
 }
 
 function shotWin(api) {
