@@ -154,7 +154,7 @@ function renderStatus(state) {
   }
   const endBtn = document.getElementById('end-turn-btn');
   endBtn.disabled = state.phase !== 'playing';
-  endBtn.textContent = state.phase === 'ai' ? 'Cinder plays…' : 'End Turn ⏎';
+  endBtn.textContent = state.phase === 'ai' ? 'Cinder plays…' : 'End Turn';
 }
 
 export function renderAll(state) {
@@ -169,7 +169,7 @@ export function addLogLine(text, cls) {
   const log = document.getElementById('duel-log');
   const line = el('div', 'log-line' + (cls ? ` ${cls}` : ''), text);
   log.prepend(line);
-  while (log.children.length > 7) log.removeChild(log.lastChild);
+  while (log.children.length > 5) log.removeChild(log.lastChild);
 }
 
 export function clearLog() {
